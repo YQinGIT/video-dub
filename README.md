@@ -47,24 +47,24 @@ preserved — only the speech is replaced.
 <tr>
 <td>
 
-<video src="https://github.com/YQinGIT/video-dub/raw/main/samples/luoxiang.mp4" controls muted width="100%"></video>
+https://github.com/user-attachments/assets/366804c8-59b5-4002-92a7-50acb3914f8a
 
 </td>
 <td>
 
-<video src="https://github.com/YQinGIT/video-dub/raw/main/samples/luoxiang.dubbed.mp4" controls muted width="100%"></video>
+https://github.com/user-attachments/assets/9a0e65d8-8f19-4965-b3fe-fa409fa56bbb
 
 </td>
 </tr>
 <tr>
 <td>
 
-<video src="https://github.com/YQinGIT/video-dub/raw/main/samples/dazhanhongtu.mp4" controls muted width="100%"></video>
+https://github.com/user-attachments/assets/ca781708-bd24-4136-aec2-138364364d73
 
 </td>
 <td>
 
-<video src="https://github.com/YQinGIT/video-dub/raw/main/samples/dazhanhongtu.dubbed.mp4" controls muted width="100%"></video>
+https://github.com/user-attachments/assets/f689441b-0c04-4728-95fa-73f7ef6ebdb0
 
 </td>
 </tr>
