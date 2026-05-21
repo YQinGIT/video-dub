@@ -10,9 +10,10 @@ def test_defaults(monkeypatch):
     s = Settings(_env_file=None)
     assert s.asr.backend == "faster_whisper"
     assert s.translation.backend == "deepseek"
+    assert s.translation.refine_source is True
     assert s.separation.backend == "demucs"
     assert s.separation.enabled is True
-    assert s.tts.backend == "cosyvoice2"
+    assert s.tts.backend == "indextts2"
     assert s.timing.backend == "rubberband"
     assert s.deepseek_api_key is None
 

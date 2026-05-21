@@ -27,9 +27,8 @@ def get_timing_fitter(cfg: TimingConfig) -> TimingFitter:
         return MockTimingFitter()
 
     if cfg.backend == "rubberband":
-        raise ConfigError(
-            "timing backend 'rubberband' is not implemented yet "
-            "(planned for Stage 7d); use 'mock' for now."
-        )
+        from videodub.timing.rubberband import RubberbandTimingFitter
+
+        return RubberbandTimingFitter()
 
     raise ConfigError(f"unknown timing backend: {cfg.backend!r}")

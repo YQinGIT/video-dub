@@ -20,7 +20,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class ASRConfig(BaseModel):
     """Audio -> Transcript. CUDA-BOUND for the real backend."""
 
-    backend: Literal["faster_whisper", "mock"] = "faster_whisper"
+    backend: Literal["faster_whisper", "whisperx", "funasr", "mock"] = "faster_whisper"
     model_size: str = "large-v3"
     device: str = "cuda"
     compute_type: str = "float16"
@@ -36,12 +36,14 @@ class TranslationConfig(BaseModel):
     source_language: str = "zh"
     target_language: str = "en"
     timing_aware: bool = True  # prompt the model to hit segment durations
+    refine_source: bool = True  # first ask DeepSeek to fix ASR errors in the source
 
 
 class SeparationConfig(BaseModel):
     """Vocal / background split. CUDA-BOUND for the real backend."""
 
     backend: Literal["demucs", "mock"] = "demucs"
+    model: str = "htdemucs_ft"  # fine-tuned htdemucs — cleanest stems
     enabled: bool = True  # toggle the whole stage
     device: str = "cuda"
 
@@ -49,7 +51,7 @@ class SeparationConfig(BaseModel):
 class TTSConfig(BaseModel):
     """Translated Transcript -> cloned speech. CUDA-BOUND for local backends."""
 
-    backend: Literal["cosyvoice2", "gpt_sovits", "elevenlabs", "mock"] = "cosyvoice2"
+    backend: Literal["indextts2", "gpt_sovits", "elevenlabs", "mock"] = "indextts2"
     device: str = "cuda"
     reference_audio: Path | None = None  # None -> clone from source vocals
 

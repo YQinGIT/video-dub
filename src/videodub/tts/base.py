@@ -1,7 +1,7 @@
 """The TTS stage's backend contract.
 
 A `TTSBackend` turns a translated `Transcript` into `SynthesizedAudio` — one
-rendered speech clip per segment. Real backends (Stage 7c, CosyVoice 2) clone
+rendered speech clip per segment. Real backends (Stage 7c, IndexTTS-2) clone
 the original speaker's voice and are CUDA-bound; the mock backend is not.
 
 The output artifact (`SynthSegment` / `SynthesizedAudio`) lives in `schemas`,
@@ -26,6 +26,16 @@ class TTSBackend(ABC):
 
     @abstractmethod
     def synthesize(
-        self, transcript: Transcript, cfg: TTSConfig, out_dir: Path
+        self,
+        transcript: Transcript,
+        cfg: TTSConfig,
+        out_dir: Path,
+        reference_audio: Path | None = None,
     ) -> SynthesizedAudio:
-        """Render every segment of `transcript` to a speech clip under `out_dir`."""
+        """Render every segment of `transcript` to a speech clip under `out_dir`.
+
+        `reference_audio` is a clip of the original speaker's voice for
+        zero-shot cloning. Real backends require it; the mock ignores it. The
+        pipeline passes `TTSConfig.reference_audio` when that is set, otherwise
+        the isolated vocals produced by the separation stage.
+        """

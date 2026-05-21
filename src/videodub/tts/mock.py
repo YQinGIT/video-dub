@@ -18,9 +18,9 @@ from videodub.config import TTSConfig
 from videodub.schemas import SynthesizedAudio, SynthSegment, Transcript
 from videodub.tts.base import TTSBackend
 
-# CosyVoice 2 — the eventual real default — renders at 24 kHz; the mock matches
-# it so swapping in the real backend later changes no sample rate downstream.
-_SAMPLE_RATE = 24000
+# IndexTTS-2 — the real default — renders at 22.05 kHz; the mock matches it so
+# swapping in the real backend later changes no sample rate downstream.
+_SAMPLE_RATE = 22050
 # A fixed, low tone. Same for every clip — this is a stand-in, not a melody.
 _FREQUENCY = 220.0
 
@@ -29,8 +29,14 @@ class MockTTS(TTSBackend):
     """A fake TTS backend: one fixed-pitch sine tone per segment."""
 
     def synthesize(
-        self, transcript: Transcript, cfg: TTSConfig, out_dir: Path
+        self,
+        transcript: Transcript,
+        cfg: TTSConfig,
+        out_dir: Path,
+        reference_audio: Path | None = None,
     ) -> SynthesizedAudio:
+        # `reference_audio` is ignored: the mock has no voice model, so there
+        # is no speaker to clone. It is accepted only to honour the contract.
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 

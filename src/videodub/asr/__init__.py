@@ -27,9 +27,18 @@ def get_asr_backend(cfg: ASRConfig) -> ASRBackend:
         return MockASR()
 
     if cfg.backend == "faster_whisper":
-        raise ConfigError(
-            "ASR backend 'faster_whisper' is not implemented yet "
-            "(planned for Stage 7a); use 'mock' for now."
-        )
+        from videodub.asr.faster_whisper import FasterWhisperASR
+
+        return FasterWhisperASR()
+
+    if cfg.backend == "whisperx":
+        from videodub.asr.whisperx import WhisperXASR
+
+        return WhisperXASR()
+
+    if cfg.backend == "funasr":
+        from videodub.asr.funasr import FunASRASR
+
+        return FunASRASR()
 
     raise ConfigError(f"unknown ASR backend: {cfg.backend!r}")

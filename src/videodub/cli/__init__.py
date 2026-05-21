@@ -6,6 +6,7 @@ Commands:
     videodub transcribe <input>     shortcut for `run transcribe`
     videodub subtitle <input>       shortcut for `run translate_subtitles`
     videodub dub <input>            shortcut for `run full_dub`
+    videodub refine <subtitle>      shortcut for `run refine_subtitles`
 
 Backends are chosen by config: pass `--config FILE` (TOML or JSON) or set
 `VIDEODUB_*` environment variables. With no config the defaults select the real
@@ -133,6 +134,27 @@ def dub(
 ) -> None:
     """Produce a voice-preserving dub of a video (recipe: full_dub)."""
     _run("full_dub", input_path, config, output)
+
+
+@app.command()
+def refine(
+    input_path: Path = typer.Argument(
+        ..., exists=True, dir_okay=False, help="Subtitle file (.srt or .vtt)."
+    ),
+    config: Path | None = typer.Option(
+        None, "--config", "-c", exists=True, dir_okay=False
+    ),
+    output: Path | None = typer.Option(
+        None, "--output", "-o",
+        help="Where to write the corrected file (default: overwrite the input).",
+    ),
+) -> None:
+    """Proofread a subtitle file's ASR text (recipe: refine_subtitles).
+
+    The subtitle text is sent to DeepSeek, which fixes speech-recognition
+    errors. With no --output the corrected file replaces the input.
+    """
+    _run("refine_subtitles", input_path, config, output)
 
 
 def main() -> None:

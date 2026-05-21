@@ -22,6 +22,7 @@ from videodub.mixing import mix
 from videodub.pipeline.context import PipelineContext
 from videodub.schemas import Transcript
 from videodub.separation import get_separator
+from videodub.subtitle import load as load_subtitle
 from videodub.subtitle import write as write_subtitle
 from videodub.timing import get_timing_fitter
 from videodub.translation import get_translator
@@ -60,6 +61,24 @@ def _asr(ctx: PipelineContext) -> None:
     ctx.transcript = backend.transcribe(audio, ctx.settings.asr)
 
 
+def _load_subtitle(ctx: PipelineContext) -> None:
+    # The refine_subtitles recipe starts from an existing subtitle file, not a
+    # video — parse it into a transcript for the refine stage to proofread.
+    ctx.transcript = load_subtitle(
+        ctx.input_path, language=ctx.settings.translation.source_language
+    )
+
+
+def _refine(ctx: PipelineContext) -> None:
+    backend = get_translator(ctx.settings.translation, ctx.settings.deepseek_api_key)
+    # Overwrite the transcript in place: the ASR output is replaced by the
+    # proofread version, so every later stage — subtitle rendering and
+    # translation alike — works from the corrected source text.
+    ctx.transcript = backend.refine(
+        _require_transcript(ctx), ctx.settings.translation
+    )
+
+
 def _translation(ctx: PipelineContext) -> None:
     backend = get_translator(ctx.settings.translation, ctx.settings.deepseek_api_key)
     ctx.translation = backend.translate(
@@ -72,8 +91,14 @@ def _tts(ctx: PipelineContext) -> None:
     # The dub speaks the translation; fall back to the transcript if a recipe
     # ever runs tts without a translation step.
     transcript = ctx.translation or _require_transcript(ctx)
+    # Voice-cloning reference: an explicit clip from config when set, otherwise
+    # the isolated vocals from the separation stage. Real backends require one;
+    # the mock ignores it.
+    reference = ctx.settings.tts.reference_audio
+    if reference is None and ctx.separated is not None:
+        reference = ctx.separated.vocals
     ctx.synthesized = backend.synthesize(
-        transcript, ctx.settings.tts, ctx.work_dir / "tts"
+        transcript, ctx.settings.tts, ctx.work_dir / "tts", reference_audio=reference
     )
 
 
@@ -118,6 +143,8 @@ STAGES: dict[str, Callable[[PipelineContext], None]] = {
     "extract_audio": _extract_audio,
     "separation": _separation,
     "asr": _asr,
+    "load_subtitle": _load_subtitle,
+    "refine": _refine,
     "translation": _translation,
     "tts": _tts,
     "timing": _timing,

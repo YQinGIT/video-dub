@@ -16,8 +16,31 @@ dependencies = [
 [project.scripts]
 videodub = "videodub.cli:main"
 
-# NOTE: the [gpu] optional-dependency extra (torch cu128, faster-whisper, demucs) is
-#       added in Stage 7, together with the PyTorch CUDA index configuration.
+[project.optional-dependencies]
+# GPU stack — CUDA box only; `uv sync --extra gpu` adds these on top of core.
+# Grown stage by stage: faster-whisper + whisperx + torch land at Stage 7a
+# (torch's wheel also supplies the cuBLAS/cuDNN runtime that CTranslate2 needs);
+# demucs at 7b; funasr (Paraformer-zh, a Mandarin-specialist ASR backend) added
+# afterwards. The Stage 7c TTS backend (IndexTTS-2) has no pip wheel and runs in
+# its own isolated venv, installed manually per its module docstring, so it is
+# deliberately absent here. torch / torchaudio use the CUDA 12.8 build
+# (Blackwell sm_120) via the explicit index below.
+gpu = [
+    "torch>=2.7",
+    "faster-whisper>=1.1",
+    "whisperx>=3.4",
+    "demucs>=4.0",
+    "funasr>=1.1",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchaudio = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 [dependency-groups]
 dev = [

@@ -2,8 +2,8 @@
 
 The mock `separation`, `tts`, and `timing` backends fabricate audio — silent
 tracks, sine tones, clips laid onto a timeline — and the `mixing` stage layers
-the dubbed vocals over the background. Each of them shells out to ffmpeg, and
-this module is the single place that does so.
+the dubbed vocals over the background. Each of them shells out to ffmpeg — and,
+to read a clip's length, ffprobe — and this module is the single place doing so.
 
 Not part of the public API. `media_io` has its own subprocess wrapper; the two
 stay separate on purpose, so that no stage has to import another.
@@ -78,3 +78,36 @@ def make_tone(
         ]
     )
     return out
+
+
+def audio_duration(path: Path) -> float:
+    """Return the duration, in seconds, of the audio file at `path`.
+
+    Shells out to `ffprobe` (which ships alongside ffmpeg). Raises `BackendError`
+    if ffprobe is missing, exits non-zero, or reports no parseable duration.
+    """
+    argv = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        str(path),
+    ]
+    try:
+        proc = subprocess.run(argv, capture_output=True, text=True, check=False)
+    except FileNotFoundError as exc:
+        raise BackendError(
+            "`ffprobe` not found on PATH — it ships with ffmpeg and is needed to "
+            "measure clip lengths; install ffmpeg and try again."
+        ) from exc
+
+    if proc.returncode != 0:
+        raise BackendError(
+            f"ffprobe failed (exit code {proc.returncode}):\n{proc.stderr.strip()}"
+        )
+
+    try:
+        return float(proc.stdout.strip())
+    except ValueError as exc:
+        raise BackendError(
+            f"ffprobe returned no usable duration for {path}: {proc.stdout!r}"
+        ) from exc

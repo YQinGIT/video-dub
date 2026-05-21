@@ -19,13 +19,20 @@ from videodub.pipeline.stages import STAGES
 
 logger = logging.getLogger("videodub.pipeline")
 
-# Conditional stages. `separation` is a toggle, not its own recipe: wherever a
-# recipe lists it, it is skipped when `SeparationConfig.enabled` is False.
+# Conditional stages — toggles, not recipes of their own: wherever a recipe
+# lists one, the runner skips it when its config switch is off. `separation`
+# follows `SeparationConfig.enabled`. `refine` (the ASR-correction pass) follows
+# `TranslationConfig.refine_source` — except in `refine_subtitles`, the recipe
+# whose entire job is to refine, where it always runs.
 _SKIP_WHEN = {
-    "separation": lambda s: not s.separation.enabled,
+    "separation": lambda s, recipe: not s.separation.enabled,
+    "refine": lambda s, recipe: (
+        recipe != "refine_subtitles" and not s.translation.refine_source
+    ),
 }
 
 # The output file extension each recipe uses when the caller passes no `output`.
+# `refine_subtitles` is absent: it rewrites the file it was given (see below).
 _DEFAULT_OUTPUT_SUFFIX = {
     "full_dub": ".dubbed.mp4",
     "transcribe": ".srt",
@@ -37,8 +44,11 @@ def default_output(recipe: str, input_path: Path) -> Path:
     """The path a recipe writes to when the caller passes no `output`.
 
     It sits next to the input file — and so outside the work directory, which
-    means it survives the `keep_intermediates=False` cleanup.
+    means it survives the `keep_intermediates=False` cleanup. `refine_subtitles`
+    is the exception: it overwrites the subtitle file it was handed.
     """
+    if recipe == "refine_subtitles":
+        return input_path
     return input_path.with_name(input_path.stem + _DEFAULT_OUTPUT_SUFFIX[recipe])
 
 
@@ -83,7 +93,7 @@ def run_recipe(
     logger.info("recipe %r: %s", recipe, " -> ".join(stage_names))
     for name in stage_names:
         skip = _SKIP_WHEN.get(name)
-        if skip is not None and skip(settings):
+        if skip is not None and skip(settings, recipe):
             logger.info("  skip   %s", name)
             continue
         logger.info("  run    %s", name)

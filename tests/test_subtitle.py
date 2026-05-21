@@ -10,7 +10,7 @@ spelling fails the test.
 import pytest
 
 from videodub.schemas import Segment, Transcript
-from videodub.subtitle import render, write
+from videodub.subtitle import load, parse, render, write
 
 # --------------------------------------------------------------------------- #
 # The shared input: a two-segment transcript, reused across the format tests.  #
@@ -145,3 +145,52 @@ def test_write_creates_missing_parent_dirs(tmp_path):
 def test_write_unknown_extension_rejected(tmp_path):
     with pytest.raises(ValueError, match="cannot infer subtitle format"):
         write(TRANSCRIPT, tmp_path / "subs.foo")
+
+
+# --------------------------------------------------------------------------- #
+# Parsing — the inverse of rendering                                          #
+# --------------------------------------------------------------------------- #
+
+def test_parse_srt_round_trips_a_rendered_transcript():
+    parsed = parse(render(TRANSCRIPT, "srt"))
+    assert [(s.start, s.end, s.text) for s in parsed.segments] == [
+        (0.0, 2.0, "Hello there"),
+        (2.0, 5.5, "General Kenobi"),
+    ]
+
+
+def test_parse_vtt_round_trips_a_rendered_transcript():
+    # VTT spells timestamps with a period and carries a WEBVTT header — the
+    # parser must read it back to the same transcript as the SRT form.
+    parsed = parse(render(TRANSCRIPT, "vtt"))
+    assert [(s.start, s.end, s.text) for s in parsed.segments] == [
+        (0.0, 2.0, "Hello there"),
+        (2.0, 5.5, "General Kenobi"),
+    ]
+
+
+def test_parse_records_the_language_it_is_given():
+    # a subtitle file does not state its own language; the caller supplies it
+    assert parse(render(TRANSCRIPT, "srt"), language="zh").language == "zh"
+
+
+def test_parse_empty_text_yields_no_segments():
+    assert parse("").segments == []
+
+
+def test_parse_rejects_an_unparseable_timestamp_line():
+    with pytest.raises(ValueError, match="unparseable timestamp"):
+        parse("1\n99 --> bad\nhello\n")
+
+
+def test_load_reads_a_subtitle_file_from_disk(tmp_path):
+    path = write(TRANSCRIPT, tmp_path / "subs.srt")
+    parsed = load(path)
+    assert [s.text for s in parsed.segments] == ["Hello there", "General Kenobi"]
+
+
+def test_load_rejects_an_ass_file(tmp_path):
+    ass_file = tmp_path / "subs.ass"
+    ass_file.write_text(render(TRANSCRIPT, "ass"), encoding="utf-8")
+    with pytest.raises(ValueError, match="ASS"):
+        load(ass_file)

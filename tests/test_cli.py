@@ -23,7 +23,7 @@ def test_recipes_command_lists_every_recipe():
     result = runner.invoke(app, ["recipes"])
 
     assert result.exit_code == 0
-    for name in ("full_dub", "translate_subtitles", "transcribe"):
+    for name in ("full_dub", "translate_subtitles", "transcribe", "refine_subtitles"):
         assert name in result.stdout
 
 
@@ -51,6 +51,21 @@ def test_dub_convenience_command(sample_video: Path, tmp_path: Path):
 
     assert result.exit_code == 0, result.stdout
     assert output.exists()
+
+
+def test_refine_convenience_command(tmp_path: Path):
+    # `refine` takes a subtitle file, not a video; the mock backend leaves the
+    # text untouched, so the run just needs to succeed and keep the file.
+    srt = tmp_path / "sub.srt"
+    srt.write_text("1\n00:00:00,000 --> 00:00:02,000\n你好\n", encoding="utf-8")
+    result = runner.invoke(
+        app,
+        ["refine", str(srt), "--config", str(_MOCK_CONFIG)],
+        env={"VIDEODUB_WORK_DIR": str(tmp_path / "work")},
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert "你好" in srt.read_text(encoding="utf-8")
 
 
 def test_unknown_recipe_exits_nonzero(sample_video: Path, tmp_path: Path):

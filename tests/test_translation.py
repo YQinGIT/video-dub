@@ -19,7 +19,11 @@ from videodub.config import TranslationConfig
 from videodub.errors import BackendError, ConfigError
 from videodub.schemas import Segment, Transcript
 from videodub.translation import Translator, get_translator
-from videodub.translation.deepseek import DeepSeekTranslator, build_messages
+from videodub.translation.deepseek import (
+    DeepSeekTranslator,
+    build_messages,
+    build_refine_messages,
+)
 from videodub.translation.mock import MockTranslator
 
 # A deepseek-backed config translating Chinese -> English, reused widely below.
@@ -38,9 +42,11 @@ def _transcript(*texts: str) -> Transcript:
 class FakeDeepSeek:
     """A stand-in DeepSeek endpoint for `httpx.MockTransport`.
 
-    It "translates" each segment to `en-of-<source text>` by reading the source
-    text back out of the prompt — so a test can verify that the right source
-    reached the right output slot, even across batches. `calls` counts requests.
+    It serves both passes the backend can make. A *correction* request (its
+    system prompt asks for a `"corrections"` object) gets each segment echoed
+    back unchanged. A *translation* request gets `en-of-<source text>`, read
+    back out of the prompt — so a test can verify the right source reached the
+    right output slot, even across batches. `calls` counts every request.
     """
 
     def __init__(self) -> None:
@@ -49,12 +55,15 @@ class FakeDeepSeek:
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.calls += 1
         payload = json.loads(request.content)
+        system_msg = payload["messages"][0]["content"]
         user_msg = payload["messages"][-1]["content"]
-        translations: dict[str, str] = {}
+        refining = '"corrections"' in system_msg
+        results: dict[str, str] = {}
         for index, block in enumerate(user_msg.split("\n\n")):
             source_text = block.split("\n", 1)[1]  # text after the "Segment N" header
-            translations[str(index)] = f"en-of-{source_text}"
-        content = json.dumps({"translations": translations})
+            results[str(index)] = source_text if refining else f"en-of-{source_text}"
+        key = "corrections" if refining else "translations"
+        content = json.dumps({key: results})
         return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
 
 
@@ -236,6 +245,97 @@ def test_prompt_names_the_language_pair():
     system = messages[0]["content"]
     assert "'zh'" in system
     assert "'en'" in system
+
+
+# --------------------------------------------------------------------------- #
+# Source refinement — the ASR-correction pass                                 #
+# --------------------------------------------------------------------------- #
+
+def test_refine_prompt_describes_the_asr_correction_task():
+    batch = [Segment(start=0.0, end=2.0, text="在见")]
+    messages = build_refine_messages(batch, ZH_EN)
+    system, user = messages[0]["content"], messages[1]["content"]
+
+    assert messages[0]["role"] == "system"
+    assert messages[1]["role"] == "user"
+    # the prompt explains where the text came from and what to do with it
+    assert "speech-recognition" in system
+    assert "'zh'" in system  # the source language is named
+    assert '"corrections"' in system  # the JSON output contract is stated
+    # the model is told to translate nothing in this pass
+    assert "Never translate" in system
+    # the source text is handed over under a plain "Segment N" header
+    assert "Segment 0" in user
+    assert "在见" in user
+
+
+def test_deepseek_refine_corrects_a_segment():
+    """`refine` repairs an ASR mistake while keeping the source language."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        user_msg = payload["messages"][-1]["content"]
+        corrections: dict[str, str] = {}
+        for index, block in enumerate(user_msg.split("\n\n")):
+            text = block.split("\n", 1)[1]
+            corrections[str(index)] = text.replace("在见", "再见")  # fix a homophone
+        content = json.dumps({"corrections": corrections})
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": content}}]}
+        )
+
+    out = _translator(handler).refine(_transcript("你好", "在见"), ZH_EN)
+
+    assert [s.text for s in out.segments] == ["你好", "再见"]  # one fixed, one kept
+    assert out.language == "zh"  # still the source language — not translated
+
+
+def test_deepseek_refine_preserves_timestamps():
+    src = _transcript("在见")
+    out = _translator(FakeDeepSeek()).refine(src, ZH_EN)
+
+    assert (out.segments[0].start, out.segments[0].end) == (0.0, 2.0)
+
+
+def test_deepseek_refine_uses_the_correction_prompt():
+    """`refine` must send the ASR-correction prompt, not the translation one."""
+    seen: dict[str, str] = {}
+
+    def capture(request: httpx.Request) -> httpx.Response:
+        seen["system"] = json.loads(request.content)["messages"][0]["content"]
+        return FakeDeepSeek()(request)
+
+    _translator(capture).refine(_transcript("你好"), ZH_EN)
+    assert "speech-recognition" in seen["system"]
+    assert '"corrections"' in seen["system"]
+
+
+def test_deepseek_refine_empty_transcript_makes_no_request():
+    fake = FakeDeepSeek()
+    out = _translator(fake).refine(Transcript(), ZH_EN)
+
+    assert fake.calls == 0  # nothing to correct
+    assert out.segments == []
+
+
+def test_deepseek_refine_rejects_a_missing_segment():
+    def incomplete(_request: httpx.Request) -> httpx.Response:
+        # promises two segments but returns only one correction
+        content = json.dumps({"corrections": {"0": "你好"}})
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": content}}]}
+        )
+
+    with pytest.raises(BackendError, match="omitted a correction"):
+        _translator(incomplete).refine(_transcript("你好", "再见"), ZH_EN)
+
+
+def test_mock_translator_refine_is_a_pass_through():
+    """The mock cannot proofread — `refine` returns the transcript untouched."""
+    src = _transcript("你好", "再见")
+    out = MockTranslator().refine(src, TranslationConfig(backend="mock"))
+
+    assert out is src
 
 
 # --------------------------------------------------------------------------- #

@@ -17,3 +17,13 @@ htmlcov/
 # Secrets & runtime artifacts
 .env
 workdir/
+
+# Model weights — downloaded, multi-GB, never committed
+checkpoints/
+pretrained_models/
+
+# Input / output media — local clips, never committed
+samples/
+
+# Claude Code — local, per-developer state
+.claude/

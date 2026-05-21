@@ -118,7 +118,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ASRConfig(BaseModel):
-    backend: Literal["faster_whisper", "mock"] = "faster_whisper"
+    backend: Literal["faster_whisper", "whisperx", "funasr", "mock"] = "faster_whisper"
     model_size: str = "large-v3"
     device: str = "cuda"
     compute_type: str = "float16"
@@ -134,11 +134,12 @@ class TranslationConfig(BaseModel):
 
 class SeparationConfig(BaseModel):
     backend: Literal["demucs", "mock"] = "demucs"
+    model: str = "htdemucs_ft"         # fine-tuned htdemucs — cleanest stems
     enabled: bool = True               # toggle the whole stage
     device: str = "cuda"
 
 class TTSConfig(BaseModel):
-    backend: Literal["cosyvoice2", "gpt_sovits", "elevenlabs", "mock"] = "cosyvoice2"
+    backend: Literal["indextts2", "gpt_sovits", "elevenlabs", "mock"] = "indextts2"
     device: str = "cuda"
     reference_audio: Path | None = None  # None -> clone from source vocals
 
@@ -227,13 +228,21 @@ recipe-specific logic:
 
 ```python
 RECIPES = {
-    "full_dub":            ["extract_audio", "separation", "asr", "translation",
-                            "tts", "timing", "mixing", "remux"],
-    "translate_subtitles": ["extract_audio", "asr", "translation", "subtitle"],
+    "full_dub":            ["extract_audio", "separation", "asr", "refine",
+                            "translation", "tts", "timing", "mixing", "remux"],
+    "translate_subtitles": ["extract_audio", "asr", "refine", "translation",
+                            "subtitle"],
     "transcribe":          ["extract_audio", "asr", "subtitle"],
+    "refine_subtitles":    ["load_subtitle", "refine", "subtitle"],
 }
 ```
-`separation` self-skips when `enabled=False` (a toggle, not a separate recipe).
+`separation` self-skips when `enabled=False`, and `refine` (the ASR-correction
+pass) when `refine_source=False` — toggles, not separate recipes. `refine`
+proofreads the source-language transcript with DeepSeek and overwrites it, so
+translation runs on the corrected text. `transcribe` stays a pure offline
+speech-to-text path. `refine_subtitles` is the standalone correction recipe:
+it takes an existing subtitle file (`load_subtitle` parses SRT/VTT), proofreads
+it, and writes the corrected file back — overwriting the input by default.
 
 ---
 
@@ -244,7 +253,8 @@ RECIPES = {
   `ruff`. `ffmpeg` and `rubberband` are **system binaries** called via subprocess — no
   Python bindings.
 - **`[gpu]` extra (CUDA box only):** `torch` (cu128 / Blackwell `sm_120`),
-  `faster-whisper`, `demucs`; TTS deps added at Stage 7c. `uv sync` installs core;
+  `faster-whisper`, `demucs`; `whisperx` added at Stage 7a (recommended ASR backend —
+  adds forced alignment + VAD); TTS deps added at Stage 7c. `uv sync` installs core;
   `uv sync --extra gpu` adds the GPU stack.
 - The SRT/VTT/ASS renderer is hand-written — trivial, avoids a dependency.
 - **Rule:** ask before adding any dependency not listed here.
@@ -324,14 +334,42 @@ pass at the end of every stage. Pause for review at each stage boundary.
 
 ### Stage 7 — Real CUDA backends  *(CUDA-BOUND — one at a time, verified on GPU)*
 Install `[gpu]` extra (`uv sync --extra gpu`: torch cu128, faster-whisper, demucs).
-- **7a `asr/faster_whisper.py`** — faster-whisper large-v3, CUDA. Verify on real audio.
-  Diarization deferred (WhisperX / pyannote noted as a later option).
-- **7b `separation/demucs.py`** — Demucs (htdemucs). Verify vocal/background split.
-- **7c `tts/cosyvoice2.py`** — CosyVoice 2 (default; strong zh + cross-lingual cloning).
-  Heaviest install — may need vendoring; **ask before adding its deps**. Verify zh→en
-  voice cloning. GPT-SoVITS noted as alternate backend.
-- **7d `timing/rubberband.py`** — `pyrubberband` + `rubberband` CLI; time-stretch within
-  `min/max_stretch`, pad/trim silence, assemble a continuous vocal track.
+Stage 7 models run **sequentially** and each fits comfortably in 16 GB — VRAM is not
+the constraint, so the higher-quality variant is preferred at every stage. Expect
+dependency-pinning friction on Blackwell `sm_120`: newer model repos (WhisperX
+and IndexTTS-2) may pin older torch/CUDA — resolve per-backend, one at a time.
+- **7a `asr/faster_whisper.py`** — faster-whisper large-v3, CUDA, word timestamps on.
+  Verify on real audio. **Then `asr/whisperx.py` (recommended)** — WhisperX wraps the
+  same faster-whisper transcription and adds wav2vec2 **forced alignment + VAD** for
+  precise segment timestamps and fewer silence hallucinations; timestamp accuracy is
+  what makes the dub land on time. Diarization still deferred (WhisperX integrates
+  pyannote when needed).
+  **Also `asr/funasr.py`** — FunASR / Paraformer-zh, a Mandarin-specialist recognizer
+  added later: trained almost entirely on Chinese, it transcribes Mandarin proper
+  nouns and domain terms more accurately than multilingual Whisper. The backend
+  drives FunASR's VAD + recognizer + punctuation models directly (its one-call
+  pipeline drops per-segment timing and its `sentence_timestamp` option crashes);
+  weights come from the HuggingFace mirror. Selected via `recipes/zh_dub.toml`.
+- **7b `separation/demucs.py`** — Demucs, default model **`htdemucs_ft`** (fine-tuned —
+  cleanest stems; ~4× slower than `htdemucs`, negligible since separation runs once per
+  video). The vocal stem doubles as the TTS voice-cloning reference, so cleanliness
+  matters. Verify vocal/background split. Mel-Band RoFormer noted as a future
+  best-in-class vocal-isolation backend (new dependency — ask first).
+- **7c `tts/indextts2.py`** — IndexTTS-2: zero-shot cross-lingual voice cloning, the
+  Stage 7c dub voice. Its dependencies are exact-pinned (older numpy / transformers,
+  Python ≤3.11) and cannot share the videodub venv, so it is installed in its **own
+  isolated venv** and driven out of process by a subprocess worker — no pip wheel,
+  installed manually per the module docstring. Verify zh→en voice cloning.
+  *CosyVoice 2 was the original plan default; it was implemented, then dropped at the
+  user's request — IndexTTS-2 is the sole TTS backend. GPT-SoVITS / ElevenLabs remain
+  documented-but-unimplemented config options.*
+- **7d `timing/rubberband.py`** — drives the `rubberband` CLI directly via subprocess
+  (the Dependencies section keeps rubberband a system binary with no Python bindings,
+  so `pyrubberband` is *not* added). For each clip: measure it against its slot,
+  time-stretch within `min/max_stretch`, trim any clip that would still overrun, pad
+  gaps with silence, and assemble one continuous vocal track on the original
+  timestamps. The timeline-assembly step is shared with the mock fitter
+  (`timing/_assemble.py`).
 - Each backend swapped in via config and verified against the mock-path baseline.
 - **DoD:** `full_dub` produces a real dubbed video from a real Chinese clip.
 
@@ -376,8 +414,8 @@ Install `[gpu]` extra (`uv sync --extra gpu`: torch cu128, faster-whisper, demuc
 - [x] Stage 4 — translation (DeepSeek + mock)
 - [x] Stage 5 — Mock GPU backends
 - [x] Stage 6 — pipeline + cli + mixing
-- [ ] Stage 7a — asr / faster-whisper
-- [ ] Stage 7b — separation / demucs
-- [ ] Stage 7c — tts / CosyVoice 2
-- [ ] Stage 7d — timing / rubberband
+- [x] Stage 7a — asr / faster-whisper (+ WhisperX alignment)
+- [x] Stage 7b — separation / demucs (htdemucs_ft)
+- [x] Stage 7c — tts / IndexTTS-2 (isolated-venv subprocess backend; installed manually — see module docstring. CosyVoice 2 dropped)
+- [x] Stage 7d — timing / rubberband (rubberband CLI; clamped stretch + pad/trim, shared timeline assembly)
 - [ ] Stage 8 — service + lipsync stub + polish

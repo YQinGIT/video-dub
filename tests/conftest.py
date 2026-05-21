@@ -16,6 +16,44 @@ import pytest
 # binaries. When they are absent we skip those tests rather than fail the suite.
 _HAS_FFMPEG = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 
+# The rubberband timing backend shells out to the `rubberband` binary; absent
+# it, the rubberband tests skip rather than fail the suite.
+_HAS_RUBBERBAND = bool(shutil.which("rubberband"))
+
+
+def _cuda_available() -> bool:
+    """True when CTranslate2 can see a CUDA device.
+
+    CTranslate2 is the inference engine behind the faster-whisper ASR backend and
+    is installed only with the `gpu` extra; on a portable machine the import
+    fails, so the GPU-marked tests are skipped instead of erroring.
+    """
+    try:
+        import ctranslate2
+    except ImportError:
+        return False
+    try:
+        return ctranslate2.get_cuda_device_count() > 0
+    except Exception:
+        return False
+
+
+_HAS_CUDA = _cuda_available()
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Skip every `@pytest.mark.gpu` test when no CUDA device is available.
+
+    Keeps `uv run pytest` green and CUDA-free on any machine; the real GPU
+    backends are exercised only where a device actually exists.
+    """
+    if _HAS_CUDA:
+        return
+    skip = pytest.mark.skip(reason="no CUDA device available")
+    for item in items:
+        if "gpu" in item.keywords:
+            item.add_marker(skip)
+
 
 @pytest.fixture(scope="session")
 def sample_video(tmp_path_factory: pytest.TempPathFactory) -> Path:
@@ -82,3 +120,14 @@ def ffmpeg_available() -> None:
     """
     if not _HAS_FFMPEG:
         pytest.skip("ffmpeg not on PATH")
+
+
+@pytest.fixture
+def rubberband_available() -> None:
+    """Skip the requesting test when the `rubberband` binary is not on PATH.
+
+    The rubberband timing backend needs both ffmpeg and the Rubber Band CLI, so
+    a test exercising it takes this fixture alongside `ffmpeg_available`.
+    """
+    if not _HAS_RUBBERBAND:
+        pytest.skip("rubberband not on PATH")

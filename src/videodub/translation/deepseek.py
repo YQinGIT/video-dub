@@ -4,6 +4,14 @@ DeepSeek exposes an OpenAI-compatible chat-completions endpoint. We send the
 source segments in batches, ask (in JSON mode) for an object mapping each
 segment's index to its translated text, and reassemble a `Transcript`.
 
+The source subtitles come from an automatic speech-recognition (ASR) model, so
+they can carry transcription errors — wrong homophones, dropped words, stray
+punctuation. `refine()` is a separate operation that proofreads the source text
+*in its own language*: it asks DeepSeek to repair recognition errors and leave
+correct lines untouched. The pipeline runs it as its own stage before
+translation, so the corrected transcript is what both the subtitle renderer and
+the translation stage go on to see.
+
 When `cfg.timing_aware` is set, the prompt also carries each segment's duration
 and a rough character budget, so the model keeps lines short enough to be spoken
 within their original time slot — otherwise a dub drifts steadily out of sync.
@@ -23,7 +31,11 @@ from pydantic import SecretStr
 from videodub.config import TranslationConfig
 from videodub.errors import BackendError
 from videodub.schemas import Segment, Transcript
-from videodub.translation.base import Translator, build_translation
+from videodub.translation.base import (
+    Translator,
+    build_refinement,
+    build_translation,
+)
 
 _API_URL = "https://api.deepseek.com/chat/completions"
 _CHARS_PER_SECOND = 14.0  # rough spoken-English rate — only a hint to the model
@@ -83,7 +95,7 @@ def _user_prompt(batch: list[Segment], cfg: TranslationConfig) -> str:
 
 
 def build_messages(batch: list[Segment], cfg: TranslationConfig) -> list[dict[str, str]]:
-    """The full `messages` array for one chat-completions request (system + user)."""
+    """The full `messages` array for one translation request (system + user)."""
     return [
         {"role": "system", "content": _system_prompt(cfg)},
         {"role": "user", "content": _user_prompt(batch, cfg)},
@@ -91,15 +103,63 @@ def build_messages(batch: list[Segment], cfg: TranslationConfig) -> list[dict[st
 
 
 # --------------------------------------------------------------------------- #
+# Prompt construction — the ASR-correction (source-refinement) pass.           #
+# This pass proofreads the source subtitles *before* they are translated.      #
+# --------------------------------------------------------------------------- #
+
+def _refine_system_prompt(cfg: TranslationConfig) -> str:
+    """The system message for the correction pass: fix ASR errors, nothing else."""
+    return (
+        "You are a meticulous proofreader of video subtitles written in the "
+        f"language '{cfg.source_language}'. These subtitles were produced by an "
+        "automatic speech-recognition (ASR) model, so they may contain "
+        "transcription errors: wrong homophones, missing or duplicated words, "
+        "run-on segments, or misplaced punctuation. Read the numbered segments "
+        "as one connected passage and repair any such errors so each segment "
+        "reads the way the speaker most likely intended. If a segment already "
+        "looks correct, return it exactly as given. Never translate, "
+        "paraphrase, summarise, or add or drop content — only fix recognition "
+        "errors, and keep every segment in its original language. "
+        'Respond with ONLY a JSON object of the form '
+        '{"corrections": {"0": "<text>", "1": "<text>"}} — exactly one entry '
+        "per input segment, keyed by the segment number as a string."
+    )
+
+
+def _refine_user_prompt(batch: list[Segment]) -> str:
+    """The user message for the correction pass: each segment as a labelled block."""
+    blocks = [f"Segment {index}\n{seg.text}" for index, seg in enumerate(batch)]
+    return "\n\n".join(blocks)
+
+
+def build_refine_messages(
+    batch: list[Segment], cfg: TranslationConfig
+) -> list[dict[str, str]]:
+    """The full `messages` array for one ASR-correction request (system + user)."""
+    return [
+        {"role": "system", "content": _refine_system_prompt(cfg)},
+        {"role": "user", "content": _refine_user_prompt(batch)},
+    ]
+
+
+# --------------------------------------------------------------------------- #
 # Response parsing                                                            #
 # --------------------------------------------------------------------------- #
 
-def _parse_response(data: dict, batch_size: int) -> list[str]:
-    """Extract `batch_size` translated strings, in index order, from a reply.
+def _parse_response(
+    data: dict,
+    batch_size: int,
+    *,
+    key: str = "translations",
+    label: str = "translation",
+) -> list[str]:
+    """Extract `batch_size` strings, in index order, from a chat reply.
 
     The chat message `content` is itself a JSON document (the API was asked for
-    JSON mode); we parse it and read its `translations` object, requiring one
-    entry per segment in the batch.
+    JSON mode); we parse it and read its `key` object, requiring one entry per
+    segment in the batch. Both passes share this code: the translation pass
+    reads `"translations"`, the correction pass reads `"corrections"` — `label`
+    only changes the wording of the error messages.
 
     Raises `BackendError` for any shape the contract does not allow.
     """
@@ -115,16 +175,16 @@ def _parse_response(data: dict, batch_size: int) -> list[str]:
             f"DeepSeek returned non-JSON content: {content[:200]!r}"
         ) from exc
 
-    translations = payload.get("translations") if isinstance(payload, dict) else None
-    if not isinstance(translations, dict):
-        raise BackendError(f"DeepSeek JSON has no 'translations' object: {payload!r}")
+    entries = payload.get(key) if isinstance(payload, dict) else None
+    if not isinstance(entries, dict):
+        raise BackendError(f"DeepSeek JSON has no {key!r} object: {payload!r}")
 
     texts: list[str] = []
     for index in range(batch_size):
-        key = str(index)
-        if key not in translations:
-            raise BackendError(f"DeepSeek omitted a translation for segment {index}")
-        texts.append(str(translations[key]))
+        entry_key = str(index)
+        if entry_key not in entries:
+            raise BackendError(f"DeepSeek omitted a {label} for segment {index}")
+        texts.append(str(entries[entry_key]))
     return texts
 
 
@@ -154,21 +214,47 @@ class DeepSeekTranslator(Translator):
         with httpx.Client(transport=self._transport, timeout=_TIMEOUT_S) as client:
             for start in range(0, len(transcript.segments), _BATCH_SIZE):
                 batch = transcript.segments[start : start + _BATCH_SIZE]
-                reply = self._post_batch(client, batch, cfg)
+                reply = self._post_batch(client, build_messages(batch, cfg), cfg)
                 texts.extend(_parse_response(reply, len(batch)))
         return build_translation(transcript, texts, cfg)
 
+    def refine(self, transcript: Transcript, cfg: TranslationConfig) -> Transcript:
+        """Proofread the ASR transcript, returning a same-language corrected one.
+
+        Batched and retried exactly like `translate`, but each request carries
+        the correction prompt and the reply is a `"corrections"` object. The
+        result keeps the source language and timestamps — only the text changes.
+        """
+        if not transcript.segments:
+            return transcript
+
+        texts: list[str] = []
+        with httpx.Client(transport=self._transport, timeout=_TIMEOUT_S) as client:
+            for start in range(0, len(transcript.segments), _BATCH_SIZE):
+                batch = transcript.segments[start : start + _BATCH_SIZE]
+                reply = self._post_batch(client, build_refine_messages(batch, cfg), cfg)
+                texts.extend(
+                    _parse_response(
+                        reply, len(batch), key="corrections", label="correction"
+                    )
+                )
+        return build_refinement(transcript, texts)
+
     def _post_batch(
-        self, client: httpx.Client, batch: list[Segment], cfg: TranslationConfig
+        self,
+        client: httpx.Client,
+        messages: list[dict[str, str]],
+        cfg: TranslationConfig,
     ) -> dict:
-        """POST one batch, retrying transient failures, and return the parsed JSON.
+        """POST one prepared `messages` array, retrying transient failures.
 
         Retries network errors and rate-limit / 5xx responses with exponential
         backoff. A non-retryable HTTP error (e.g. 401 bad key) fails immediately.
+        Both the correction and translation passes funnel through here.
         """
         payload = {
             "model": cfg.model,
-            "messages": build_messages(batch, cfg),
+            "messages": messages,
             "temperature": _TEMPERATURE,
             "response_format": {"type": "json_object"},
         }

@@ -27,9 +27,8 @@ def get_separator(cfg: SeparationConfig) -> Separator:
         return MockSeparator()
 
     if cfg.backend == "demucs":
-        raise ConfigError(
-            "separation backend 'demucs' is not implemented yet "
-            "(planned for Stage 7b); use 'mock' for now."
-        )
+        from videodub.separation.demucs import DemucsSeparator
+
+        return DemucsSeparator()
 
     raise ConfigError(f"unknown separation backend: {cfg.backend!r}")

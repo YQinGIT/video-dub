@@ -23,7 +23,11 @@ from videodub.config import (
 from videodub.errors import ConfigError
 from videodub.media_io import probe
 from videodub.pipeline import RECIPES, run_recipe
+from videodub.pipeline import stages as pipeline_stages
+from videodub.pipeline.context import PipelineContext
 from videodub.pipeline.stages import STAGES
+from videodub.schemas import Segment, Transcript
+from videodub.translation.base import Translator
 
 
 def _mock_settings(tmp_path: Path) -> Settings:
@@ -88,6 +92,118 @@ def test_separation_self_skips_when_disabled(sample_video: Path, tmp_path: Path)
 
     assert ctx.separated is None  # separation was skipped...
     assert ctx.output_path.exists()  # ...and the dub still completed
+
+
+def test_refine_stage_overwrites_the_transcript(tmp_path: Path, monkeypatch):
+    """The refine stage replaces ctx.transcript with the corrected version, so
+    the subtitle and translation stages downstream see the cleaned-up text."""
+
+    class StubTranslator(Translator):
+        def translate(self, transcript, cfg):
+            return transcript
+
+        def refine(self, transcript, cfg):
+            seg = transcript.segments[0]
+            corrected = Segment(
+                start=seg.start, end=seg.end, text="corrected", speaker=seg.speaker
+            )
+            return Transcript(segments=[corrected], language=transcript.language)
+
+    monkeypatch.setattr(
+        pipeline_stages, "get_translator", lambda cfg, key: StubTranslator()
+    )
+    ctx = PipelineContext(
+        input_path=tmp_path / "in.mp4",
+        output_path=tmp_path / "out.srt",
+        work_dir=tmp_path,
+        settings=_mock_settings(tmp_path),
+    )
+    ctx.transcript = Transcript(
+        segments=[Segment(start=0.0, end=1.0, text="raw asr text")], language="zh"
+    )
+
+    pipeline_stages._refine(ctx)
+
+    assert ctx.transcript.segments[0].text == "corrected"
+
+
+def test_refine_self_skips_when_disabled(
+    sample_video: Path, tmp_path: Path, monkeypatch
+):
+    """With refine_source off, the runner skips the refine stage entirely."""
+
+    class LoudRefiner(Translator):
+        def translate(self, transcript, cfg):
+            return transcript
+
+        def refine(self, transcript, cfg):
+            raise AssertionError("refine ran even though refine_source is False")
+
+    monkeypatch.setattr(
+        pipeline_stages, "get_translator", lambda cfg, key: LoudRefiner()
+    )
+    settings = _mock_settings(tmp_path)
+    settings.translation.refine_source = False
+
+    # translate_subtitles lists `refine` before `translation`; LoudRefiner would
+    # blow the run up if `refine` were not skipped.
+    ctx = run_recipe(
+        "translate_subtitles", sample_video, settings, output=tmp_path / "out.srt"
+    )
+    assert ctx.output_path.exists()
+
+
+def test_refine_subtitles_recipe_rewrites_the_file(tmp_path: Path, monkeypatch):
+    """`refine_subtitles` loads a subtitle file, corrects it, and overwrites it."""
+    srt = tmp_path / "sub.srt"
+    srt.write_text("1\n00:00:00,000 --> 00:00:02,000\n在见\n", encoding="utf-8")
+
+    class FixingTranslator(Translator):
+        def translate(self, transcript, cfg):
+            return transcript
+
+        def refine(self, transcript, cfg):
+            seg = transcript.segments[0]
+            fixed = Segment(
+                start=seg.start, end=seg.end, text="再见", speaker=seg.speaker
+            )
+            return Transcript(segments=[fixed], language=transcript.language)
+
+    monkeypatch.setattr(
+        pipeline_stages, "get_translator", lambda cfg, key: FixingTranslator()
+    )
+    ctx = run_recipe("refine_subtitles", srt, _mock_settings(tmp_path))
+
+    assert ctx.output_path == srt  # the input file is rewritten in place
+    rewritten = srt.read_text(encoding="utf-8")
+    assert "再见" in rewritten and "在见" not in rewritten
+
+
+def test_refine_subtitles_ignores_the_refine_source_toggle(
+    tmp_path: Path, monkeypatch
+):
+    """Unlike the auto-correct in other recipes, the explicit refine_subtitles
+    recipe runs `refine` even when refine_source is False."""
+    srt = tmp_path / "sub.srt"
+    srt.write_text("1\n00:00:00,000 --> 00:00:02,000\nhello\n", encoding="utf-8")
+    refined = {"called": False}
+
+    class Recorder(Translator):
+        def translate(self, transcript, cfg):
+            return transcript
+
+        def refine(self, transcript, cfg):
+            refined["called"] = True
+            return transcript
+
+    monkeypatch.setattr(
+        pipeline_stages, "get_translator", lambda cfg, key: Recorder()
+    )
+    settings = _mock_settings(tmp_path)
+    settings.translation.refine_source = False
+    run_recipe("refine_subtitles", srt, settings)
+
+    assert refined["called"] is True
 
 
 def test_default_output_sits_next_to_the_input(sample_video: Path, tmp_path: Path):

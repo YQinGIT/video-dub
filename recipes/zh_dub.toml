@@ -1,0 +1,16 @@
+# Chinese-source dub — selects the Mandarin-specialist FunASR (Paraformer-zh)
+# ASR backend in place of the default faster-whisper.
+#
+# FunASR is trained almost entirely on Mandarin and resolves tone-near
+# homophones (e.g. 同意 "consent" vs. 同一 "identity") far more reliably than
+# multilingual Whisper, so the transcript — and therefore the translated dub —
+# is more accurate on Chinese speech.
+#
+# Use it with any recipe, e.g.:
+#   videodub run full_dub VIDEO.mp4 --config recipes/zh_dub.toml
+#
+# Every other backend keeps its default (Demucs / DeepSeek / IndexTTS-2 /
+# rubberband); only the ASR backend is overridden here.
+
+[asr]
+backend = "funasr"
