@@ -47,24 +47,24 @@ preserved — only the speech is replaced.
 <tr>
 <td>
 
-https://github.com/user-attachments/assets/366804c8-59b5-4002-92a7-50acb3914f8a
+https://github.com/user-attachments/assets/fc6ce533-74b5-4de4-b7cc-c14b037d1995
 
 </td>
 <td>
 
-https://github.com/user-attachments/assets/9a0e65d8-8f19-4965-b3fe-fa409fa56bbb
+https://github.com/user-attachments/assets/d625c097-244b-48ce-8740-e084e8cf44c6
 
 </td>
 </tr>
 <tr>
 <td>
 
-https://github.com/user-attachments/assets/ca781708-bd24-4136-aec2-138364364d73
+https://github.com/user-attachments/assets/045c28dc-bb8f-45be-986e-ea95f8af5588
 
 </td>
 <td>
 
-https://github.com/user-attachments/assets/f689441b-0c04-4728-95fa-73f7ef6ebdb0
+https://github.com/user-attachments/assets/8c990239-d686-486a-a891-14fad8c627d6
 
 </td>
 </tr>
