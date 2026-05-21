@@ -1,5 +1,12 @@
 # video-dub
 
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![PyTorch · CUDA 12.8](https://img.shields.io/badge/PyTorch-CUDA%2012.8-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![Managed with uv](https://img.shields.io/badge/uv-managed-DE5FE9?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
+[![Linted with Ruff](https://img.shields.io/badge/lint-ruff-261230?logo=ruff&logoColor=white)](https://docs.astral.sh/ruff/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue?logo=apache&logoColor=white)](LICENSE)
+[![Status: in development](https://img.shields.io/badge/status-in_development-yellow)](PLAN.md)
+
 **Turn a video in one language into a video in another — while keeping the original speaker's voice.**
 
 `video-dub` is a local-first, modular toolkit for video localization. Give it a Chinese
