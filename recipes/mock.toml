@@ -1,0 +1,24 @@
+# All-mock backend selection — runs anywhere, no GPU and no API key required.
+#
+# Use it with any recipe, e.g.:
+#   videodub run full_dub VIDEO.mp4 --config recipes/mock.toml
+#
+# Each [section] maps to a per-stage config model in videodub/config.py; only
+# the `backend` field is overridden here, so every other setting keeps its
+# default. Swap a backend back to its real value (or drop the section) once the
+# Stage 7 CUDA backends are available.
+
+[asr]
+backend = "mock"
+
+[separation]
+backend = "mock"
+
+[translation]
+backend = "mock"
+
+[tts]
+backend = "mock"
+
+[timing]
+backend = "mock"

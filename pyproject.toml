@@ -13,9 +13,11 @@ dependencies = [
     "uvicorn>=0.30",
 ]
 
+[project.scripts]
+videodub = "videodub.cli:main"
+
 # NOTE: the [gpu] optional-dependency extra (torch cu128, faster-whisper, demucs) is
 #       added in Stage 7, together with the PyTorch CUDA index configuration.
-# NOTE: the `videodub` console script entry point is added in Stage 6 with the CLI.
 
 [dependency-groups]
 dev = [
@@ -37,6 +39,11 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Typer's API puts `typer.Option(...)` / `typer.Argument(...)` calls in
+# parameter defaults by design; that is not the B008 mutable-default trap.
+extend-immutable-calls = ["typer.Argument", "typer.Option"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,9 +1,9 @@
-"""Private ffmpeg helper for the mock GPU backends.
+"""Private ffmpeg helper for the stages that synthesize or combine audio.
 
 The mock `separation`, `tts`, and `timing` backends fabricate audio — silent
-tracks, sine tones, clips laid onto a timeline — so the whole pipeline runs end
-to end with no CUDA. Each of them shells out to ffmpeg, and this module is the
-single place that does so.
+tracks, sine tones, clips laid onto a timeline — and the `mixing` stage layers
+the dubbed vocals over the background. Each of them shells out to ffmpeg, and
+this module is the single place that does so.
 
 Not part of the public API. `media_io` has its own subprocess wrapper; the two
 stay separate on purpose, so that no stage has to import another.
