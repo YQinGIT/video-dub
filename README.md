@@ -361,7 +361,8 @@ backend = "demucs"      # demucs | mock
 enabled = true          # set false to skip the vocals/background split
 
 [tts]
-backend = "indextts2"   # indextts2 | mock
+backend      = "indextts2"   # indextts2 | mock
+trim_silence = true          # strip dead air from each clip before timing
 
 [timing]
 backend = "rubberband"  # rubberband | mock
@@ -414,7 +415,7 @@ VIDEODUB_DEEPSEEK_API_KEY=sk-...
 | **ASR** (transcription) | Converts speech to timestamped text. | **faster-whisper** (`large-v3`, default), **WhisperX** (better word timing), or **FunASR** (`Paraformer-zh`, Mandarin specialist) | GPU |
 | **Refine** | Optionally proofreads the transcript to fix recognition errors before translating. | **DeepSeek** (`deepseek-chat`) | Cloud API |
 | **Translation** | Translates each segment, keeping the original timestamps. It is *timing-aware* — the prompt tells the model how long each line has, so the translation fits the available time. | **DeepSeek** (`deepseek-chat`) | Cloud API |
-| **TTS** (speech synthesis) | Speaks the translated text, *cloning the original speaker's voice* from the separated vocals. | **IndexTTS-2** (zero-shot, cross-lingual voice cloning) | GPU |
+| **TTS** (speech synthesis) | Speaks the translated text, *cloning the original speaker's voice* from the separated vocals, then trims the dead air (leading silence, model-invented pauses) out of each clip so the timing stage rarely has to cut speech. | **IndexTTS-2** (zero-shot, cross-lingual voice cloning) | GPU |
 | **Timing** | Stretches or compresses each synthesized clip so it lines up with the original timeline, without sounding unnatural. | **Rubberband** | CPU |
 | **Subtitle** | Renders a `Transcript` to `.srt` / `.vtt` / `.ass` (or parses one back in). | built-in | CPU |
 | **Mixing** | Combines the dubbed voice with the preserved background music. | `ffmpeg` (`amix`) | CPU |
