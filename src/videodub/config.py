@@ -54,14 +54,15 @@ class TTSConfig(BaseModel):
     backend: Literal["indextts2", "gpt_sovits", "elevenlabs", "mock"] = "indextts2"
     device: str = "cuda"
     reference_audio: Path | None = None  # None -> clone from source vocals
+    trim_silence: bool = True  # strip dead air from each clip before timing
 
 
 class TimingConfig(BaseModel):
     """Fit synth segments to target durations. Portable (rubberband binary)."""
 
     backend: Literal["rubberband", "mock"] = "rubberband"
-    max_stretch: float = 1.3  # cap so the dub stays natural
-    min_stretch: float = 0.7
+    max_stretch: float = 3.0  # cap so the dub stays natural
+    min_stretch: float = 0.4  # floor; lower fits more speech but sounds rushed
 
 
 class MixingConfig(BaseModel):

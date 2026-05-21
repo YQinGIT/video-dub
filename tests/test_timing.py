@@ -144,10 +144,12 @@ def test_rubberband_compresses_long_clip_to_slot(
 def test_rubberband_clamps_excessive_stretch(
     ffmpeg_available: None, rubberband_available: None, tmp_path: Path
 ):
-    # a 1.0 s clip in a 3.0 s slot would need 3x; max_stretch caps it at 1.3, so
-    # the clip reaches only ~1.3 s — it is not stretched all the way to the slot.
+    # a 1.0 s clip in a 3.0 s slot would need 3x; max_stretch — pinned to 1.3
+    # here, so the test holds whatever the config default is — caps it, so the
+    # clip reaches only ~1.3 s, not the full slot.
+    cfg = TimingConfig(backend="rubberband", max_stretch=1.3)
     synth = _mismatched(tmp_path, (1.0, (0.0, 3.0)))
-    out = RubberbandTimingFitter().fit(synth, RUBBERBAND, tmp_path / "vocals.wav")
+    out = RubberbandTimingFitter().fit(synth, cfg, tmp_path / "vocals.wav")
 
     assert probe(out).duration == pytest.approx(1.3, abs=0.15)
 
@@ -155,10 +157,11 @@ def test_rubberband_clamps_excessive_stretch(
 def test_rubberband_trims_clip_that_overruns_after_clamping(
     ffmpeg_available: None, rubberband_available: None, tmp_path: Path
 ):
-    # a 3.0 s clip in a 1.0 s slot would need 0.33x; min_stretch floors it at
-    # 0.7, leaving ~2.1 s — still over the slot, so it is trimmed back to 1.0 s.
+    # a 3.0 s clip in a 1.0 s slot would need 0.33x; min_stretch — pinned to 0.7
+    # here — floors it at ~2.1 s, still over the slot, so it is trimmed to 1.0 s.
+    cfg = TimingConfig(backend="rubberband", min_stretch=0.7)
     synth = _mismatched(tmp_path, (3.0, (0.0, 1.0)))
-    out = RubberbandTimingFitter().fit(synth, RUBBERBAND, tmp_path / "vocals.wav")
+    out = RubberbandTimingFitter().fit(synth, cfg, tmp_path / "vocals.wav")
 
     assert probe(out).duration == pytest.approx(1.0, abs=0.1)
 

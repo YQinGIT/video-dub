@@ -35,7 +35,7 @@ Primary use case: **Chinese video → English dub.** Other language pairs work t
 
 ## Demo
 
-A Chinese lecture clip dubbed into English by `video-dub`. The English translation is
+Chinese clips dubbed into English by `video-dub`. The English translation is
 spoken in a **clone of the original speaker's voice**, and the background audio is
 preserved — only the speech is replaced.
 
@@ -56,16 +56,28 @@ preserved — only the speech is replaced.
 
 </td>
 </tr>
+<tr>
+<td>
+
+<video src="https://github.com/OWNER/REPO/raw/main/samples/dazhanhongtu.mp4" controls muted width="100%"></video>
+
+</td>
+<td>
+
+<video src="https://github.com/OWNER/REPO/raw/main/samples/dazhanhongtu.dubbed.mp4" controls muted width="100%"></video>
+
+</td>
+</tr>
 </table>
 
 <!--
-  Before pushing: replace OWNER/REPO in the two URLs above with your GitHub path
+  Before pushing: replace OWNER/REPO in the four URLs above with your GitHub path
   (e.g. yiquanwen/video-dub), and replace `main` if your default branch differs.
   GitHub plays a committed video inline only through an absolute raw URL inside a
   <video> tag — a relative path renders as a download link instead.
 -->
 
-> **Heads-up:** the two videos above won't play until `OWNER/REPO` in their URLs is
+> **Heads-up:** the videos above won't play until `OWNER/REPO` in their URLs is
 > replaced with this repository's real GitHub path. The source files live in
 > [`samples/`](samples/) and are tracked in git.
 

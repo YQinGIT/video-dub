@@ -223,7 +223,7 @@ def test_timing_aware_prompt_carries_duration_and_budget():
     assert messages[0]["role"] == "system"
     assert messages[1]["role"] == "user"
     assert "duration 3.0s" in user
-    assert "budget ~42 chars" in user  # 3.0 s * 14 chars/s
+    assert "budget ~33 chars" in user  # 3.0 s * 11 chars/s
     assert "你好" in user
     assert "character budget" in system  # the timing instruction is present
     assert "translations" in system  # the JSON output contract is stated

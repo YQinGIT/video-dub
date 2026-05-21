@@ -1,10 +1,12 @@
 """tts — translated Transcript to cloned speech. CUDA-BOUND.
 
 Public API:
-    get_tts_backend(cfg) -> TTSBackend   select a backend by config
+    get_tts_backend(cfg) -> TTSBackend          select a backend by config
+    trim_silence(synth, out_dir) -> SynthesizedAudio   strip dead air from clips
 
 `get_tts_backend` imports the chosen backend lazily, so importing this package
 never pulls in a heavy voice model unless a real backend is actually used.
+`trim_silence` is a portable post-process (ffmpeg only); see `tts/silence.py`.
 """
 
 from __future__ import annotations
@@ -12,8 +14,9 @@ from __future__ import annotations
 from videodub.config import TTSConfig
 from videodub.errors import ConfigError
 from videodub.tts.base import TTSBackend
+from videodub.tts.silence import trim_silence
 
-__all__ = ["TTSBackend", "get_tts_backend"]
+__all__ = ["TTSBackend", "get_tts_backend", "trim_silence"]
 
 # GPT-SoVITS and ElevenLabs are kept in the config as documented alternates but
 # are not implemented; IndexTTS-2 is the Stage 7c TTS backend.

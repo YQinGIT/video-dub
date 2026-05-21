@@ -26,7 +26,7 @@ from videodub.subtitle import load as load_subtitle
 from videodub.subtitle import write as write_subtitle
 from videodub.timing import get_timing_fitter
 from videodub.translation import get_translator
-from videodub.tts import get_tts_backend
+from videodub.tts import get_tts_backend, trim_silence
 
 
 def _require_audio(ctx: PipelineContext) -> Path:
@@ -97,9 +97,15 @@ def _tts(ctx: PipelineContext) -> None:
     reference = ctx.settings.tts.reference_audio
     if reference is None and ctx.separated is not None:
         reference = ctx.separated.vocals
-    ctx.synthesized = backend.synthesize(
+    synthesized = backend.synthesize(
         transcript, ctx.settings.tts, ctx.work_dir / "tts", reference_audio=reference
     )
+    # A neural TTS clip can carry dead air the model invented — long internal
+    # pauses, leading padding — which would force the timing stage to cut speech
+    # to make the clip fit its slot. Strip it now so timing only ever stretches.
+    if ctx.settings.tts.trim_silence:
+        synthesized = trim_silence(synthesized, ctx.work_dir / "tts" / "_trimmed")
+    ctx.synthesized = synthesized
 
 
 def _timing(ctx: PipelineContext) -> None:

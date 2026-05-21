@@ -38,7 +38,7 @@ from videodub.translation.base import (
 )
 
 _API_URL = "https://api.deepseek.com/chat/completions"
-_CHARS_PER_SECOND = 14.0  # rough spoken-English rate — only a hint to the model
+_CHARS_PER_SECOND = 11.0  # measured dub pace — biased low so timing stretches, not trims
 _BATCH_SIZE = 20  # segments per request: keeps each prompt and JSON reply small
 _TEMPERATURE = 0.3  # low — translation should be stable, not inventive
 _TIMEOUT_S = 60.0

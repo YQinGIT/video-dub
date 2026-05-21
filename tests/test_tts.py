@@ -15,12 +15,14 @@ from pathlib import Path
 
 import pytest
 
+from videodub._ffmpeg import run_ffmpeg
 from videodub.config import TTSConfig
 from videodub.errors import BackendError, ConfigError
 from videodub.media_io import probe
-from videodub.schemas import Segment, SynthesizedAudio, Transcript
+from videodub.schemas import Segment, SynthesizedAudio, SynthSegment, Transcript
 from videodub.tts import TTSBackend, get_tts_backend
 from videodub.tts.mock import MockTTS
+from videodub.tts.silence import strip_silence, trim_silence
 
 MOCK = TTSConfig(backend="mock")
 
@@ -152,6 +154,76 @@ def test_indextts2_not_installed_raises(
             tmp_path,
             reference_audio=reference,
         )
+
+
+# --------------------------------------------------------------------------- #
+# Silence trimming — the TTS post-process that strips dead air from each clip  #
+# before the timing stage. Portable: needs only the ffmpeg binary.            #
+# --------------------------------------------------------------------------- #
+
+def _gapped_clip(path: Path) -> None:
+    """Write a 3.3s WAV: 0.3s silence, 1s tone, 1s silence, 1s tone.
+
+    The leading silence and the long internal gap are exactly the dead air the
+    trimmer must remove — it stands in for a padded neural-TTS clip.
+    """
+    run_ffmpeg(
+        [
+            "-f", "lavfi", "-i", "sine=frequency=300:sample_rate=22050:duration=1",
+            "-f", "lavfi", "-i", "sine=frequency=300:sample_rate=22050:duration=1",
+            "-filter_complex",
+            "[0:a]adelay=300:all=1[a];[1:a]adelay=2300:all=1[b];"
+            "[a][b]amix=inputs=2:normalize=0[out]",
+            "-map", "[out]", "-ac", "1",
+            str(path),
+        ]
+    )
+
+
+def test_strip_silence_removes_dead_air(ffmpeg_available: None, tmp_path: Path):
+    src = tmp_path / "padded.wav"
+    _gapped_clip(src)
+    assert probe(src).duration == pytest.approx(3.3, abs=0.2)
+
+    dst = strip_silence(src, tmp_path / "trimmed.wav")
+
+    # Leading silence is gone and the 1s internal gap is capped to a short
+    # pause, so what remains is the ~2s of tone plus one small gap.
+    assert dst.exists()
+    assert 1.8 < probe(dst).duration < 2.7
+
+
+def test_trim_silence_shortens_clips_and_keeps_metadata(
+    ffmpeg_available: None, tmp_path: Path
+):
+    src = tmp_path / "clip.wav"
+    _gapped_clip(src)
+    synth = SynthesizedAudio(
+        segments=[
+            SynthSegment(
+                start=2.0, end=4.0, audio_path=src, text="hello", speaker="A"
+            )
+        ],
+        sample_rate=22050,
+    )
+
+    result = trim_silence(synth, tmp_path / "_trimmed")
+
+    seg = result.segments[0]
+    assert seg.audio_path != src  # rewritten to a fresh, trimmed file
+    assert seg.audio_path.exists()
+    assert probe(seg.audio_path).duration < probe(src).duration
+    # The slot timestamps, text and speaker are carried over untouched.
+    assert (seg.start, seg.end, seg.text, seg.speaker) == (2.0, 4.0, "hello", "A")
+    assert result.sample_rate == 22050
+
+
+def test_trim_silence_empty_is_a_noop(tmp_path: Path):
+    # No segments -> no ffmpeg calls, so this runs even without the binary.
+    result = trim_silence(SynthesizedAudio(segments=[], sample_rate=22050), tmp_path)
+
+    assert result.segments == []
+    assert result.sample_rate == 22050
 
 
 @pytest.mark.gpu

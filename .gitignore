@@ -23,10 +23,12 @@ checkpoints/
 pretrained_models/
 
 # Input / output media — local clips, never committed.
-# Exception: the two demo videos embedded in the README are tracked on purpose.
+# Exception: the demo videos embedded in the README are tracked on purpose.
 samples/*
 !samples/luoxiang.mp4
 !samples/luoxiang.dubbed.mp4
+!samples/dazhanhongtu.mp4
+!samples/dazhanhongtu.dubbed.mp4
 
 # Claude Code — local, per-developer state
 .claude/
