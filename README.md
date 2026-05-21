@@ -17,10 +17,25 @@ person* — or just an English subtitle file, if that is all you need.
 
 Primary use case: **Chinese video → English dub.** Other language pairs work too.
 
-```
-  input.mp4  ──►  [ separate ]──►[ transcribe ]──►[ translate ]──►[ speak ]──►[ time + mix ]  ──►  input.dubbed.mp4
-   (Chinese)         voices         Chinese text     English text   English      synced audio        (English)
-                   vs. music                                       voice clone
+```mermaid
+flowchart LR
+    IN(["🎬 input.mp4 · Chinese"]):::io
+    SEP["🔉 separate"]
+    ASR["📝 transcribe"]
+    TR["🌐 translate"]
+    TTS["🗣️ speak · voice clone"]
+    MIX["🎚️ time + mix"]
+    OUT(["✅ input.dubbed.mp4 · English"]):::io
+
+    IN --> SEP
+    SEP -- vocals --> ASR
+    ASR --> TR
+    TR --> TTS
+    TTS --> MIX
+    SEP -. background .-> MIX
+    MIX --> OUT
+
+    classDef io fill:#0969da,stroke:#0b5cad,color:#ffffff;
 ```
 
 ---

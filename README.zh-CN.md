@@ -17,10 +17,25 @@
 
 主要使用场景：**中文视频 → 英文配音。** 其它语言组合同样适用。
 
-```
-  input.mp4  ──►  [ separate ]──►[ transcribe ]──►[ translate ]──►[ speak ]──►[ time + mix ]  ──►  input.dubbed.mp4
-   (Chinese)         voices         Chinese text     English text   English      synced audio        (English)
-                   vs. music                                       voice clone
+```mermaid
+flowchart LR
+    IN(["🎬 input.mp4 · 中文"]):::io
+    SEP["🔉 人声分离"]
+    ASR["📝 转写"]
+    TR["🌐 翻译"]
+    TTS["🗣️ 配音 · 声音克隆"]
+    MIX["🎚️ 对齐 + 混音"]
+    OUT(["✅ input.dubbed.mp4 · 英文"]):::io
+
+    IN --> SEP
+    SEP -- 人声 --> ASR
+    ASR --> TR
+    TR --> TTS
+    TTS --> MIX
+    SEP -. 背景音 .-> MIX
+    MIX --> OUT
+
+    classDef io fill:#0969da,stroke:#0b5cad,color:#ffffff;
 ```
 
 ---
