@@ -370,7 +370,7 @@ Install `[gpu]` extra (`uv sync --extra gpu`: torch cu128, faster-whisper, demuc
 ## Progress Tracker
 
 - [x] Stage 0 — Scaffold & tooling
-- [ ] Stage 1 — Core contracts (schemas, config, errors)
+- [x] Stage 1 — Core contracts (schemas, config, errors)
 - [ ] Stage 2 — media_io
 - [ ] Stage 3 — subtitle
 - [ ] Stage 4 — translation (DeepSeek + mock)
