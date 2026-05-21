@@ -18,3 +18,7 @@ class BackendError(VideodubError):
 
 class StageError(VideodubError):
     """A pipeline stage failed during execution."""
+
+
+class MediaIOError(VideodubError):
+    """An ffmpeg / ffprobe call failed, or the binary is missing from PATH."""

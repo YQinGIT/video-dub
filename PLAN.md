@@ -371,7 +371,7 @@ Install `[gpu]` extra (`uv sync --extra gpu`: torch cu128, faster-whisper, demuc
 
 - [x] Stage 0 — Scaffold & tooling
 - [x] Stage 1 — Core contracts (schemas, config, errors)
-- [ ] Stage 2 — media_io
+- [x] Stage 2 — media_io
 - [ ] Stage 3 — subtitle
 - [ ] Stage 4 — translation (DeepSeek + mock)
 - [ ] Stage 5 — Mock GPU backends
