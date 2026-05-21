@@ -33,6 +33,7 @@ class PipelineContext(BaseModel):
     synthesized: SynthesizedAudio | None = None
     fitted_vocals: Path | None = None
     mixed_audio: Path | None = None
+    subtitle_path: Path | None = None
 
     def path(self, name: str) -> Path:
         """An intermediate-file path inside this run's work directory."""

@@ -67,6 +67,10 @@ def _run(
         typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
     typer.secho(f"done: {ctx.output_path}", fg=typer.colors.GREEN)
+    if ctx.subtitle_path is not None:
+        typer.secho(
+            f"      subtitles: {ctx.subtitle_path}", fg=typer.colors.GREEN
+        )
 
 
 @app.callback()

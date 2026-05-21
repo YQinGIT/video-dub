@@ -59,6 +59,20 @@ def test_full_dub_produces_a_dubbed_video(sample_video: Path, tmp_path: Path):
     assert info.has_video and info.has_audio
 
 
+def test_full_dub_writes_a_subtitle_sidecar(sample_video: Path, tmp_path: Path):
+    """full_dub drops a translated .srt beside the dubbed video, sharing its stem."""
+    ctx = run_recipe(
+        "full_dub", sample_video, _mock_settings(tmp_path), output=tmp_path / "out.mp4"
+    )
+
+    sidecar = tmp_path / "out.srt"
+    assert ctx.subtitle_path == sidecar
+    assert sidecar.exists()
+    text = sidecar.read_text(encoding="utf-8")
+    assert "-->" in text  # has at least one cue
+    assert "[en]" in text  # the mock translator tags every line with the target lang
+
+
 def test_transcribe_produces_a_subtitle_file(sample_video: Path, tmp_path: Path):
     ctx = run_recipe(
         "transcribe", sample_video, _mock_settings(tmp_path), output=tmp_path / "out.srt"

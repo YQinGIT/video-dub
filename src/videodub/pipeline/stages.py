@@ -139,6 +139,18 @@ def _subtitle(ctx: PipelineContext) -> None:
     write_subtitle(transcript, ctx.output_path)
 
 
+def _subtitle_sidecar(ctx: PipelineContext) -> None:
+    # full_dub writes the dubbed video to ctx.output_path; this drops a matching
+    # subtitle file beside it — same stem, `.srt` extension — so a media player
+    # auto-loads it (luoxiang.dubbed.mp4 -> luoxiang.dubbed.srt). The cues carry
+    # the translated lines on the source segment timings, the same slots the
+    # timing stage fits the dubbed audio to, so the text tracks the speech.
+    transcript = ctx.translation or _require_transcript(ctx)
+    ctx.subtitle_path = write_subtitle(
+        transcript, ctx.output_path.with_suffix(".srt")
+    )
+
+
 STAGES: dict[str, Callable[[PipelineContext], None]] = {
     "extract_audio": _extract_audio,
     "separation": _separation,
@@ -151,4 +163,5 @@ STAGES: dict[str, Callable[[PipelineContext], None]] = {
     "mixing": _mixing,
     "remux": _remux,
     "subtitle": _subtitle,
+    "subtitle_sidecar": _subtitle_sidecar,
 }
