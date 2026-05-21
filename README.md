@@ -47,39 +47,30 @@ preserved — only the speech is replaced.
 <tr>
 <td>
 
-<video src="https://github.com/OWNER/REPO/raw/main/samples/luoxiang.mp4" controls muted width="100%"></video>
+<video src="https://github.com/YQinGIT/video-dub/raw/main/samples/luoxiang.mp4" controls muted width="100%"></video>
 
 </td>
 <td>
 
-<video src="https://github.com/OWNER/REPO/raw/main/samples/luoxiang.dubbed.mp4" controls muted width="100%"></video>
+<video src="https://github.com/YQinGIT/video-dub/raw/main/samples/luoxiang.dubbed.mp4" controls muted width="100%"></video>
 
 </td>
 </tr>
 <tr>
 <td>
 
-<video src="https://github.com/OWNER/REPO/raw/main/samples/dazhanhongtu.mp4" controls muted width="100%"></video>
+<video src="https://github.com/YQinGIT/video-dub/raw/main/samples/dazhanhongtu.mp4" controls muted width="100%"></video>
 
 </td>
 <td>
 
-<video src="https://github.com/OWNER/REPO/raw/main/samples/dazhanhongtu.dubbed.mp4" controls muted width="100%"></video>
+<video src="https://github.com/YQinGIT/video-dub/raw/main/samples/dazhanhongtu.dubbed.mp4" controls muted width="100%"></video>
 
 </td>
 </tr>
 </table>
 
-<!--
-  Before pushing: replace OWNER/REPO in the four URLs above with your GitHub path
-  (e.g. yiquanwen/video-dub), and replace `main` if your default branch differs.
-  GitHub plays a committed video inline only through an absolute raw URL inside a
-  <video> tag — a relative path renders as a download link instead.
--->
-
-> **Heads-up:** the videos above won't play until `OWNER/REPO` in their URLs is
-> replaced with this repository's real GitHub path. The source files live in
-> [`samples/`](samples/) and are tracked in git.
+> The video files live in [`samples/`](samples/) and are tracked in git.
 
 ---
 
@@ -150,7 +141,7 @@ sudo apt install -y ffmpeg rubberband-cli
 **3. Get the code and install Python dependencies:**
 
 ```bash
-git clone <this-repo-url> video-dub
+git clone https://github.com/YQinGIT/video-dub.git
 cd video-dub
 
 uv sync --extra gpu     # installs everything, including the CUDA model stack
