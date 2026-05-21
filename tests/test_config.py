@@ -3,8 +3,11 @@
 from videodub.config import Settings
 
 
-def test_defaults():
-    s = Settings()
+def test_defaults(monkeypatch):
+    # Hermetic: ignore any local .env file and any VIDEODUB_ env var, so this
+    # checks the *code's* built-in defaults, not the developer's machine.
+    monkeypatch.delenv("VIDEODUB_DEEPSEEK_API_KEY", raising=False)
+    s = Settings(_env_file=None)
     assert s.asr.backend == "faster_whisper"
     assert s.translation.backend == "deepseek"
     assert s.separation.backend == "demucs"
