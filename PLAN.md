@@ -374,7 +374,7 @@ Install `[gpu]` extra (`uv sync --extra gpu`: torch cu128, faster-whisper, demuc
 - [x] Stage 2 — media_io
 - [x] Stage 3 — subtitle
 - [x] Stage 4 — translation (DeepSeek + mock)
-- [ ] Stage 5 — Mock GPU backends
+- [x] Stage 5 — Mock GPU backends
 - [ ] Stage 6 — pipeline + cli + mixing
 - [ ] Stage 7a — asr / faster-whisper
 - [ ] Stage 7b — separation / demucs
